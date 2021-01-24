@@ -1,53 +1,56 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using HttpToMqtt.Model;
 using Microsoft.Extensions.Configuration;
 using MQTTnet;
 using MQTTnet.Client.Connecting;
 using MQTTnet.Client.Options;
+using MQTTnet.Client.Publishing;
 
 namespace HttpToMqtt.Services
 {
     public class MqttService
     {
-        private readonly IConfiguration _configuration;
+        private MqttConfigurationModel _mqttConfiguration;
 
         public MqttService(IConfiguration configuration)
         {
-            _configuration = configuration;
+            _mqttConfiguration = configuration.GetSection("Mqtt").Get<MqttConfigurationModel>();
         }
-
-
         public async Task PublishAsync(string topic, string payload)
         {
+            // Get mqtt configuration model
 
-
-            _configuration.GetSection("");
             // Create a new MQTT client.
             var factory = new MqttFactory();
-            var mqttClient = factory.CreateMqttClient();
-
-            // Use TCP connection.
-            var mqttOptions = new MqttClientOptionsBuilder()
-                .WithTcpServer("broker.hivemq.com", 1883) // Port is optional
-                .WithCredentials("bud", "%spencer%")
-                .Build();
-
-            var mqttMessage = new MqttApplicationMessageBuilder()
-                .WithTopic(topic)
-                .WithPayload(payload)
-                .WithExactlyOnceQoS()
-                .WithRetainFlag()
-                .Build();
-
-            var connectResult = await mqttClient.ConnectAsync(mqttOptions, new CancellationTokenSource(TimeSpan.FromSeconds(60)).Token);
-            if (connectResult.ResultCode != MqttClientConnectResultCode.Success)
+            using (var mqttClient = factory.CreateMqttClient())
             {
-                throw new InvalidOperationException($"Mqtt connection error: {connectResult.ReasonString} ({connectResult.ResultCode})")M
+                var mqttOptions = new MqttClientOptionsBuilder()
+                    .WithTcpServer(_mqttConfiguration.Server, _mqttConfiguration.Port) // Port is optional
+                    .WithCredentials(_mqttConfiguration.Username, _mqttConfiguration.Password)
+                    .Build();
+
+                var mqttMessage = new MqttApplicationMessageBuilder()
+                    .WithTopic(topic)
+                    .WithPayload(payload)
+                    .WithExactlyOnceQoS()
+                    .WithRetainFlag()
+                    .Build();
+
+                var connectResult = await mqttClient.ConnectAsync(mqttOptions, new CancellationTokenSource(TimeSpan.FromSeconds(_mqttConfiguration.ConnectTimeoutSeconds)).Token);
+                if (connectResult.ResultCode != MqttClientConnectResultCode.Success)
+                {
+                    throw new InvalidOperationException($"Mqtt connection error: {connectResult.ReasonString} ({connectResult.ResultCode})");
+                }
+
+                var publishResult = await mqttClient.PublishAsync(mqttMessage, new CancellationTokenSource(TimeSpan.FromSeconds(_mqttConfiguration.ConnectTimeoutSeconds)).Token);
+
+                if (publishResult.ReasonCode != MqttClientPublishReasonCode.Success)
+                {
+                    throw new InvalidOperationException($"Mqtt PublishAsync error: {publishResult.ReasonString} ({publishResult.ReasonCode})");
+                }
             }
-
-
-            var publishResult = await mqttClient.PublishAsync(mqttMessage, new CancellationTokenSource(TimeSpan.FromSeconds(60)).Token);
         }
     }
 }
