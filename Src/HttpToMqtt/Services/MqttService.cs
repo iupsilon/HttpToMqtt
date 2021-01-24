@@ -12,7 +12,7 @@ namespace HttpToMqtt.Services
 {
     public class MqttService
     {
-        private MqttConfigurationModel _mqttConfiguration;
+        private readonly MqttConfigurationModel _mqttConfiguration;
 
         public MqttService(IConfiguration configuration)
         {
@@ -20,37 +20,33 @@ namespace HttpToMqtt.Services
         }
         public async Task PublishAsync(string topic, string payload)
         {
-            // Get mqtt configuration model
-
             // Create a new MQTT client.
             var factory = new MqttFactory();
-            using (var mqttClient = factory.CreateMqttClient())
+            using var mqttClient = factory.CreateMqttClient();
+            var mqttOptions = new MqttClientOptionsBuilder()
+                .WithTcpServer(_mqttConfiguration.Server, _mqttConfiguration.Port) // Port is optional
+                .WithCredentials(_mqttConfiguration.Username, _mqttConfiguration.Password)
+                .WithClientId(_mqttConfiguration.ClientId)
+                .WithTls(new MqttClientOptionsBuilderTlsParameters {UseTls = _mqttConfiguration.UseTls})
+                .Build();
+
+            var mqttMessage = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .WithExactlyOnceQoS()
+                .Build();
+
+            var connectResult = await mqttClient.ConnectAsync(mqttOptions, new CancellationTokenSource(TimeSpan.FromSeconds(_mqttConfiguration.ConnectTimeoutSeconds)).Token);
+            if (connectResult.ResultCode != MqttClientConnectResultCode.Success)
             {
-                var mqttOptions = new MqttClientOptionsBuilder()
-                    .WithTcpServer(_mqttConfiguration.Server, _mqttConfiguration.Port) // Port is optional
-                    .WithCredentials(_mqttConfiguration.Username, _mqttConfiguration.Password)
-                    .WithClientId(_mqttConfiguration.ClientId)
-                    .WithTls(new MqttClientOptionsBuilderTlsParameters {UseTls = _mqttConfiguration.UseTls})
-                    .Build();
+                throw new InvalidOperationException($"Mqtt connection error: {connectResult.ReasonString} ({connectResult.ResultCode})");
+            }
 
-                var mqttMessage = new MqttApplicationMessageBuilder()
-                    .WithTopic(topic)
-                    .WithPayload(payload)
-                    .WithExactlyOnceQoS()
-                    .Build();
+            var publishResult = await mqttClient.PublishAsync(mqttMessage, new CancellationTokenSource(TimeSpan.FromSeconds(_mqttConfiguration.ConnectTimeoutSeconds)).Token);
 
-                var connectResult = await mqttClient.ConnectAsync(mqttOptions, new CancellationTokenSource(TimeSpan.FromSeconds(_mqttConfiguration.ConnectTimeoutSeconds)).Token);
-                if (connectResult.ResultCode != MqttClientConnectResultCode.Success)
-                {
-                    throw new InvalidOperationException($"Mqtt connection error: {connectResult.ReasonString} ({connectResult.ResultCode})");
-                }
-
-                var publishResult = await mqttClient.PublishAsync(mqttMessage, new CancellationTokenSource(TimeSpan.FromSeconds(_mqttConfiguration.ConnectTimeoutSeconds)).Token);
-
-                if (publishResult.ReasonCode != MqttClientPublishReasonCode.Success)
-                {
-                    throw new InvalidOperationException($"Mqtt PublishAsync error: {publishResult.ReasonString} ({publishResult.ReasonCode})");
-                }
+            if (publishResult.ReasonCode != MqttClientPublishReasonCode.Success)
+            {
+                throw new InvalidOperationException($"Mqtt PublishAsync error: {publishResult.ReasonString} ({publishResult.ReasonCode})");
             }
         }
     }
