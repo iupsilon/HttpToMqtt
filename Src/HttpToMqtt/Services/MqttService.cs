@@ -29,13 +29,14 @@ namespace HttpToMqtt.Services
                 var mqttOptions = new MqttClientOptionsBuilder()
                     .WithTcpServer(_mqttConfiguration.Server, _mqttConfiguration.Port) // Port is optional
                     .WithCredentials(_mqttConfiguration.Username, _mqttConfiguration.Password)
+                    .WithClientId(_mqttConfiguration.ClientId)
+                    .WithTls(new MqttClientOptionsBuilderTlsParameters {UseTls = _mqttConfiguration.UseTls})
                     .Build();
 
                 var mqttMessage = new MqttApplicationMessageBuilder()
                     .WithTopic(topic)
                     .WithPayload(payload)
                     .WithExactlyOnceQoS()
-                    .WithRetainFlag()
                     .Build();
 
                 var connectResult = await mqttClient.ConnectAsync(mqttOptions, new CancellationTokenSource(TimeSpan.FromSeconds(_mqttConfiguration.ConnectTimeoutSeconds)).Token);
