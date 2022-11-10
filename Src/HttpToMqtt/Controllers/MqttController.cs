@@ -1,14 +1,10 @@
 using System;
 using System.ComponentModel.DataAnnotations;
-using System.Threading;
 using System.Threading.Tasks;
 using HttpToMqtt.Services;
-using Microsoft.AspNetCore.Http;
+
 using Microsoft.AspNetCore.Mvc;
-using MQTTnet;
-using MQTTnet.Client;
-using MQTTnet.Client.Connecting;
-using MQTTnet.Client.Options;
+
 using Serilog;
 
 namespace HttpToMqtt.Controllers
@@ -31,17 +27,17 @@ namespace HttpToMqtt.Controllers
         {
             try
             {
-                Log.Information($"Publish deviceName: {deviceName} action: {action} payload: {payload}");
+                Log.Information("Publish deviceName: {DeviceName} action: {Action} payload: {Payload}", deviceName, action, payload);
                 var mqttTopic = $"{deviceName}/{action}";
                 await _mqttService.PublishAsync(mqttTopic, payload);
 
-                Log.Information($"Publish success (topic: {mqttTopic})");
+                Log.Information("Publish success (topic: {MqttTopic})", mqttTopic);
 
                 return Ok(mqttTopic);
             }
             catch (Exception e)
             {
-                Log.Error($"Publish error", e);
+                Log.Error(e, "Publish error: {Error}", e);
                 return StatusCode(500, "Publish error, see log");
             }
         }

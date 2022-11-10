@@ -4,9 +4,8 @@ using System.Threading.Tasks;
 using HttpToMqtt.Model;
 using Microsoft.Extensions.Configuration;
 using MQTTnet;
-using MQTTnet.Client.Connecting;
-using MQTTnet.Client.Options;
-using MQTTnet.Client.Publishing;
+using MQTTnet.Client;
+using MQTTnet.Protocol;
 
 namespace HttpToMqtt.Services
 {
@@ -33,7 +32,7 @@ namespace HttpToMqtt.Services
             var mqttMessage = new MqttApplicationMessageBuilder()
                 .WithTopic(topic)
                 .WithPayload(payload)
-                .WithExactlyOnceQoS()
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.ExactlyOnce)
                 .Build();
 
             var connectResult = await mqttClient.ConnectAsync(mqttOptions, new CancellationTokenSource(TimeSpan.FromSeconds(_mqttConfiguration.ConnectTimeoutSeconds)).Token);
